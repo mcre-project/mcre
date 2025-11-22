@@ -11,8 +11,8 @@ use mcre_data::{
 };
 use tokio::task;
 
-const BLOCK_DATA_PATH: &'static str = "crates/mcre_data/blocks.json";
-const BLOCK_STATE_DATA_PATH: &'static str = "crates/mcre_data/block_states.json";
+const BLOCK_DATA_PATH: &str = "crates/mcre_data/blocks.json";
+const BLOCK_STATE_DATA_PATH: &str = "crates/mcre_data/block_states.json";
 
 #[tokio::main]
 async fn main() {
@@ -101,10 +101,10 @@ async fn main() {
                 let task = task::spawn(async move {
                     println!("[DEBUG] Downloading: {}", lib.name);
                     let lib_source = lib.downloads.artifact.download().await.unwrap();
-                    if let Some(parent) = lib_path.parent() {
-                        if !parent.exists() {
-                            tokio::fs::create_dir_all(parent).await.unwrap();
-                        }
+                    if let Some(parent) = lib_path.parent()
+                        && !parent.exists()
+                    {
+                        tokio::fs::create_dir_all(parent).await.unwrap();
                     }
                     tokio::fs::write(&lib_path, lib_source).await.unwrap();
                 });
@@ -263,7 +263,7 @@ fn generate_block_state_data(env: &mut JNIEnv) {
                 &block_state_registry,
                 "byId",
                 "(I)Ljava/lang/Object;",
-                &[JValueGen::Int(block_state_id.try_into().unwrap())],
+                &[JValueGen::Int(block_state_id.into())],
             )
             .unwrap()
             .l()
@@ -346,7 +346,7 @@ fn process_block_state(
         .unwrap();
 
     let is_air = env
-        .get_field(&block_state, "isAir", "Z")
+        .get_field(block_state, "isAir", "Z")
         .unwrap()
         .z()
         .unwrap();
@@ -494,7 +494,7 @@ fn get_state_values(block_state: &JObject, env: &mut JNIEnv) -> HashMap<String, 
 
         let property_clazz_name = obj_to_str(property_clazz_name, env);
 
-        let value = env.call_method(&block_state, "getValue", "(Lnet/minecraft/world/level/block/state/properties/Property;)Ljava/lang/Comparable;", &[JValueGen::Object(&property)]).unwrap().l().unwrap();
+        let value = env.call_method(block_state, "getValue", "(Lnet/minecraft/world/level/block/state/properties/Property;)Ljava/lang/Comparable;", &[JValueGen::Object(&property)]).unwrap().l().unwrap();
         let key_obj = env
             .get_field(&property, "name", "Ljava/lang/String;")
             .unwrap()
@@ -593,17 +593,14 @@ fn get_registry<'a>(env: &mut JNIEnv<'a>, name: &str, jtype: &str) -> JObject<'a
         .find_class("net/minecraft/core/registries/BuiltInRegistries")
         .unwrap();
 
-    let registry = env
-        .get_static_field(
-            built_in_registries,
-            name,
-            format!("Lnet/minecraft/core/{jtype};"),
-        )
-        .unwrap()
-        .l()
-        .unwrap();
-
-    registry
+    env.get_static_field(
+        built_in_registries,
+        name,
+        format!("Lnet/minecraft/core/{jtype};"),
+    )
+    .unwrap()
+    .l()
+    .unwrap()
 }
 
 fn get_block_display_name(env: &mut JNIEnv, block: &JObject) -> String {
@@ -638,7 +635,7 @@ fn get_block_name(block: &JObject, block_registry: &JObject, env: &mut JNIEnv) -
             block_registry,
             "getKey",
             "(Ljava/lang/Object;)Lnet/minecraft/resources/ResourceLocation;",
-            &[JValueGen::Object(&block)],
+            &[JValueGen::Object(block)],
         )
         .unwrap()
         .l()
@@ -663,7 +660,7 @@ fn obj_to_str(obj: JObject, env: &mut JNIEnv) -> String {
 fn get_block_states(block: &JObject, env: &mut JNIEnv) -> Vec<BlockStateField> {
     let state_definition = env
         .get_field(
-            &block,
+            block,
             "stateDefinition",
             "Lnet/minecraft/world/level/block/state/StateDefinition;",
         )
