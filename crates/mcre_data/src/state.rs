@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-
+use indexmap::IndexMap;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -34,7 +33,7 @@ pub struct BlockState {
     pub requires_correct_tool_for_drops: bool,
     pub destroy_speed: f32,
     pub offset_type: OffsetType,
-    pub state_values: HashMap<String, StateValue>,
+    pub state_values: IndexMap<String, StateValue>,
 }
 
 #[derive(Serialize)]

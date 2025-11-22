@@ -1,5 +1,6 @@
-use std::{collections::HashMap, fs, path::PathBuf, process::Command};
+use std::{fs, path::PathBuf, process::Command};
 
+use indexmap::IndexMap;
 use jni::{
     InitArgsBuilder, JNIEnv, JavaVM,
     objects::{JObject, JString, JValueGen},
@@ -465,8 +466,8 @@ pub fn determine_offset_type(block_state: &JObject, env: &mut JNIEnv) -> OffsetT
     OffsetType::Xz
 }
 
-fn get_state_values(block_state: &JObject, env: &mut JNIEnv) -> HashMap<String, StateValue> {
-    let mut values = HashMap::new();
+fn get_state_values(block_state: &JObject, env: &mut JNIEnv) -> IndexMap<String, StateValue> {
+    let mut values = IndexMap::new();
 
     let properties = env
         .call_method(

@@ -17,10 +17,11 @@ mcre_data = { workspace = true }
 mcdl = { workspace = true }
 
 java-locator = { workspace = true }
-jni = { workspace = true }
+jni          = { workspace = true }
 
-tokio = { workspace = true }
+tokio      = { workspace = true }
 serde_json = { workspace = true }
+indexmap   = { workspace = true }
 
 [build-dependencies]
 java-locator = { workspace = true }
