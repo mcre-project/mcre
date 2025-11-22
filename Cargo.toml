@@ -1,0 +1,27 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "tasks/data_generator"]
+
+[workspace.package]
+authors = ["Dilshad <a-rustacean@outlook.com>"]
+categories = ["games"]
+homepage = "https://github.com/mcre-project/mcre"
+keywords = ["Minecraft", "Voxel"]
+license = "MIT"
+repository = "https://github.com/mcre-project/mcre"
+description = "A minecraft clone written in Rust."
+
+edition = "2024"
+rust-version = "1.91.0"
+
+[workspace.dependencies]
+mcre_data = { version = "0.1.0", path = "crates/mcre_data" }
+
+mcdl = { version = "0.1.0", git = "https://github.com/oxidized-steve/mcdl" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+
+java-locator = "0.1"
+jni = { version = "0.21", features = ["invocation"] }
