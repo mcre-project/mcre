@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # Maintain dependencies for Cargo
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    assignees:
+      - "a-rustacean"
+    reviewers:
+      - "a-rustacean"
