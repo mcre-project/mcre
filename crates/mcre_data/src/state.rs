@@ -50,21 +50,6 @@ pub enum OffsetType {
 
 impl OffsetType {
     #[inline]
-    fn mc_seed(pos: BlockPos) -> i64 {
-        // This matches: Mth.getSeed(BlockPos)
-        let mut i = (pos.x as i64).wrapping_mul(3_129_871)
-            ^ (pos.z as i64).wrapping_mul(116_129_781)
-            ^ (pos.y as i64);
-
-        i = i
-            .wrapping_mul(i)
-            .wrapping_mul(42_317_861)
-            .wrapping_add(i.wrapping_mul(11));
-
-        i
-    }
-
-    #[inline]
     fn extract(seed: i64, shift: u32, scale: f32, base: f32) -> f32 {
         let bits = ((seed >> shift) & 15) as f32 / 15.0;
         (bits - base) * scale
@@ -75,13 +60,13 @@ impl OffsetType {
         match self {
             Self::None => (0.0, 0.0, 0.0),
             Self::XZ => {
-                let seed = Self::mc_seed(pos);
+                let seed = pos.seed();
                 let x = Self::extract(seed, 16, 0.5, 0.5);
                 let z = Self::extract(seed, 24, 0.5, 0.5);
                 (x, 0.0, z)
             }
             Self::XYZ => {
-                let seed = Self::mc_seed(pos);
+                let seed = pos.seed();
                 let x = Self::extract(seed, 16, 0.5, 0.5);
                 let y = Self::extract(seed, 20, 0.2, 1.0);
                 let z = Self::extract(seed, 24, 0.5, 0.5);
