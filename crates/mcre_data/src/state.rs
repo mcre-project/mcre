@@ -1,7 +1,11 @@
 use indexmap::IndexMap;
-use serde::Serialize;
+use mcre_core::BlockPos;
+use serde::{Deserialize, Serialize};
+use std::io;
+use std::path::PathBuf;
+use tokio::fs;
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct BlockState {
     pub id: u16,
     pub block_id: u16,
@@ -36,7 +40,7 @@ pub struct BlockState {
     pub state_values: IndexMap<String, StateValue>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum StateValue {
     Int(u8),
@@ -44,10 +48,75 @@ pub enum StateValue {
     String(String),
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OffsetType {
     None,
     XZ,
     XYZ,
+}
+
+impl OffsetType {
+    #[inline]
+    fn mc_seed(pos: BlockPos) -> i64 {
+        // This matches: Mth.getSeed(BlockPos)
+        let mut i = (pos.x as i64).wrapping_mul(3_129_871)
+            ^ (pos.z as i64).wrapping_mul(116_129_781)
+            ^ (pos.y as i64);
+
+        i = i
+            .wrapping_mul(i)
+            .wrapping_mul(42_317_861)
+            .wrapping_add(i.wrapping_mul(11));
+
+        i
+    }
+
+    #[inline]
+    fn extract(seed: i64, shift: u32, scale: f32, base: f32) -> f32 {
+        let bits = ((seed >> shift) & 15) as f32 / 15.0;
+        (bits - base) * scale
+    }
+
+    #[inline]
+    pub fn offset(&self, pos: BlockPos) -> (f32, f32, f32) {
+        match self {
+            Self::None => (0.0, 0.0, 0.0),
+            Self::XZ => {
+                let seed = Self::mc_seed(pos);
+                let x = Self::extract(seed, 16, 0.5, 0.5);
+                let z = Self::extract(seed, 24, 0.5, 0.5);
+                (x, 0.0, z)
+            }
+            Self::XYZ => {
+                let seed = Self::mc_seed(pos);
+                let x = Self::extract(seed, 16, 0.5, 0.5);
+                let y = Self::extract(seed, 20, 0.2, 1.0);
+                let z = Self::extract(seed, 24, 0.5, 0.5);
+                (x, y, z)
+            }
+        }
+    }
+}
+
+impl BlockState {
+    pub async fn all() -> io::Result<Vec<Self>> {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let block_state_data_path = root.join("block_states.json");
+        let block_state_data_json = fs::read_to_string(block_state_data_path).await?;
+        let block_data: Vec<Self> = serde_json::from_str(&block_state_data_json)?;
+
+        Ok(block_data)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::state::BlockState;
+
+    #[tokio::test]
+    async fn test_block_state_data_load() {
+        let block_states = BlockState::all().await.unwrap();
+        assert!(!block_states.is_empty());
+    }
 }

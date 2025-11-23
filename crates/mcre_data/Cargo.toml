@@ -14,5 +14,10 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-serde    = { workspace = true }
-indexmap = { workspace = true }
+mcre_core = { workspace = true }
+
+serde      = { workspace = true }
+serde_json = { workspace = true }
+indexmap   = { workspace = true }
+
+tokio = { workspace = true }
