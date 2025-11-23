@@ -459,11 +459,11 @@ pub fn determine_offset_type(block_state: &JObject, env: &mut JNIEnv) -> OffsetT
         let y_val = env.get_field(&vec3_obj, "y", "D").unwrap().d().unwrap();
 
         if y_val.abs() > 0.00001 {
-            return OffsetType::Xyz;
+            return OffsetType::XYZ;
         }
     }
 
-    OffsetType::Xz
+    OffsetType::XZ
 }
 
 fn get_state_values(block_state: &JObject, env: &mut JNIEnv) -> IndexMap<String, StateValue> {

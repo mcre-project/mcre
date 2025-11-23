@@ -48,6 +48,6 @@ pub enum StateValue {
 #[serde(rename_all = "lowercase")]
 pub enum OffsetType {
     None,
-    Xz,
-    Xyz,
+    XZ,
+    XYZ,
 }
