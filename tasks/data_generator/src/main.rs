@@ -6,9 +6,10 @@ use jni::{
     objects::{JObject, JString, JValueGen},
 };
 use mcje_downloader::RootManifest;
+use mcre_core::StateValue;
 use mcre_data::{
     block::{Block, BlockStateField, BlockStateFieldValues},
-    state::{BlockState, OffsetType, StateValue},
+    state::{BlockState, OffsetType},
 };
 use tokio::task;
 

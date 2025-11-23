@@ -218,6 +218,7 @@ dependencies = [
  "java-locator",
  "jni",
  "mcje_downloader",
+ "mcre_core",
  "mcre_data",
  "serde_json",
  "tokio",
@@ -846,6 +847,9 @@ dependencies = [
 [[package]]
 name = "mcre_core"
 version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "mcre_data"
