@@ -8,7 +8,7 @@
 
 </div>
 
-**Minecraft Rust Edition** — an ambitious attempt to create a faithful, modern 1:1 clone of Minecraft in Rust.
+**Minecraft Rust Edition**: an ambitious attempt to create a faithful, modern 1:1 clone of Minecraft in Rust.
 
 <sub>*“1:1 clone” refers to behaviour, rendering, and functionality. Replicating every legacy bug is not a goal.</sub>
 
