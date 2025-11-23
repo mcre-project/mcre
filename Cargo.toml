@@ -15,6 +15,7 @@ edition = "2024"
 rust-version = "1.91.0"
 
 [workspace.dependencies]
+mcre_core = { version = "0.1.0", path = "crates/mcre_core" }
 mcre_data = { version = "0.1.0", path = "crates/mcre_data" }
 
 mcdl = { version = "0.1.0", git = "https://github.com/oxidized-steve/mcdl" }
