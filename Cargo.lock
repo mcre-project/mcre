@@ -834,7 +834,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcre_assest"
+name = "mcre_assets"
 version = "0.1.0"
 dependencies = [
  "indexmap",
