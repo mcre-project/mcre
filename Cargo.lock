@@ -839,6 +839,7 @@ version = "0.1.0"
 dependencies = [
  "indexmap",
  "mcje_downloader",
+ "mcre_core",
  "serde",
  "serde_json",
  "tokio",

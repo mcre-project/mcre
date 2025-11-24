@@ -2,15 +2,8 @@ use core::fmt;
 use std::{collections::HashMap, slice};
 
 use indexmap::IndexMap;
-use serde::{Deserialize, Deserializer, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(untagged)]
-pub enum StateValue {
-    Int(u8),
-    Bool(bool),
-    String(String),
-}
+use mcre_core::StateValue;
+use serde::{Deserialize, Deserializer};
 
 /// Represents a single variant entry from the "variants" map.
 #[derive(Debug, Clone)]
