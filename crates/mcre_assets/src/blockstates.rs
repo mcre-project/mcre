@@ -181,14 +181,17 @@ impl BlockStateDefinition {
 
 #[cfg(test)]
 mod tests {
-    use crate::blockstates::BlockStateDefinition;
+    use mcre_data::state::BlockState;
+
+    use crate::blockstates::{BlockModelResolution, BlockStateDefinition};
     use std::{
+        collections::HashMap,
         fs::{self, File},
         path::PathBuf,
     };
 
     #[tokio::test]
-    async fn test_parse_block_state_definition() {
+    async fn test_parse_and_resolve_block_state_definition() {
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let manifest_dir = PathBuf::from(manifest_dir);
         let root_dir = manifest_dir.join("assets/minecraft/blockstates");
@@ -197,30 +200,62 @@ mod tests {
         let mut passed = 0;
         let mut failed = Vec::new();
 
+        let mut block_state_definitions = HashMap::new();
+
         for entry in fs::read_dir(&root_dir).unwrap() {
             total += 1;
             let entry = entry.unwrap();
             let path = entry.path();
             let file = File::open(&path).unwrap();
+
+            let file_name = path.file_name().unwrap().to_str().unwrap();
+            let name = file_name.strip_suffix(".json").unwrap().to_string();
+
             let result: Result<BlockStateDefinition, _> = serde_json::from_reader(file);
+
             match result {
-                Ok(_) => passed += 1,
+                Ok(block_state_definition) => {
+                    passed += 1;
+                    block_state_definitions.insert(name, block_state_definition);
+                }
                 Err(err) => {
-                    let file_name = path.file_name().unwrap().to_str().unwrap();
-                    let name = file_name.strip_suffix(".json").unwrap().to_string();
                     failed.push((name, err));
                 }
             }
         }
 
         if !failed.is_empty() {
-            eprintln!("Failed tests:");
+            eprintln!("Failed to parse:");
             for (name, err) in failed {
                 eprintln!("- {}: {}", name, err);
             }
         }
 
         assert_eq!(passed, total);
+
+        // resolution
+        let block_states = BlockState::all().await.unwrap();
+
+        for block_state in block_states {
+            let definition = block_state_definitions
+                .get(&block_state.block_name)
+                .unwrap();
+            let resolution = definition.resolve(&block_state.state_values).unwrap();
+            match resolution {
+                BlockModelResolution::Unified(models) => assert!(
+                    !models.is_empty(),
+                    "Block: {}, variant: {:?}",
+                    block_state.block_name,
+                    block_state.state_values
+                ),
+                BlockModelResolution::Multipart(model_lists) => assert!(
+                    block_state.block_name.ends_with("wall") || !model_lists.is_empty(),
+                    "Block: {}, variant: {:?}",
+                    block_state.block_name,
+                    block_state.state_values
+                ),
+            }
+        }
     }
 }
 

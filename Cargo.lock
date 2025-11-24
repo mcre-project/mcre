@@ -840,6 +840,7 @@ dependencies = [
  "indexmap",
  "mcje_downloader",
  "mcre_core",
+ "mcre_data",
  "serde",
  "serde_json",
  "tokio",
