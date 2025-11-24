@@ -5,6 +5,8 @@ use indexmap::IndexMap;
 use mcre_core::StateValue;
 use serde::{Deserialize, Deserializer};
 
+use crate::BlockModelId;
+
 /// Represents a single variant entry from the "variants" map.
 #[derive(Debug, Clone)]
 pub struct VariantEntry {
@@ -50,9 +52,6 @@ pub enum VariantDefinition {
     Single(ModelVariant),
     Multiple(Vec<ModelVariant>),
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlockModelId(pub String);
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
@@ -265,41 +264,6 @@ mod de_impl {
         Deserialize,
         de::{self, MapAccess, Unexpected, Visitor},
     };
-
-    impl<'de> Deserialize<'de> for BlockModelId {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            struct BlockPatternVisitor;
-
-            impl<'de> Visitor<'de> for BlockPatternVisitor {
-                type Value = BlockModelId;
-
-                fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                    f.write_str("a string starting with \"minecraft:block/\"")
-                }
-
-                fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-                where
-                    E: de::Error,
-                {
-                    if let Some(id) = value.strip_prefix("minecraft:block/") {
-                        Ok(BlockModelId(id.to_string()))
-                    } else if let Some(id) = value.strip_prefix("block/") {
-                        Ok(BlockModelId(id.to_string()))
-                    } else {
-                        Err(E::invalid_value(
-                            de::Unexpected::Str(value),
-                            &"string matching minecraft:block/*",
-                        ))
-                    }
-                }
-            }
-
-            deserializer.deserialize_str(BlockPatternVisitor)
-        }
-    }
 
     impl<'de> Deserialize<'de> for RotationDegrees {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
