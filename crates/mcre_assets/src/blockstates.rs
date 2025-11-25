@@ -2,7 +2,7 @@ use core::fmt;
 use std::{collections::HashMap, slice};
 
 use indexmap::IndexMap;
-use mcre_core::StateValue;
+use mcre_core::{StateValue, Vec4f};
 use serde::{Deserialize, Deserializer};
 
 use crate::BlockModelId;
@@ -95,6 +95,32 @@ pub enum Condition {
     KeyValue(String, Vec<StateValue>),
     And(Vec<Condition>),
     Or(Vec<Condition>),
+}
+
+impl RotationDegrees {
+    pub fn rotate_uv(self, uv: Vec4f) -> Vec4f {
+        let [u1, v1, u2, v2] = *uv;
+
+        // UV corners in Minecraft order:
+        // 0 = top-left, 1 = top-right, 2 = bottom-right, 3 = bottom-left
+        // but you can treat them as a loop
+        let mut pts = [(u1, v1), (u2, v1), (u2, v2), (u1, v2)];
+
+        match self {
+            Self::R0 => {}
+            Self::R90 => pts.rotate_right(1), // 1-step rotate
+            Self::R180 => pts.rotate_right(2),
+            Self::R270 => pts.rotate_right(3),
+        }
+
+        // After rotation, recompute bounding box
+        let min_u = pts.iter().map(|p| p.0).fold(f32::INFINITY, f32::min);
+        let max_u = pts.iter().map(|p| p.0).fold(f32::NEG_INFINITY, f32::max);
+        let min_v = pts.iter().map(|p| p.1).fold(f32::INFINITY, f32::min);
+        let max_v = pts.iter().map(|p| p.1).fold(f32::NEG_INFINITY, f32::max);
+
+        Vec4f::new(min_u, min_v, max_u, max_v)
+    }
 }
 
 impl Condition {
