@@ -18,6 +18,9 @@ rust-version = "1.91.0"
 mcre_core       = { version = "0.1.0", path = "crates/mcre_core" }
 mcre_data       = { version = "0.1.0", path = "crates/mcre_data" }
 mcre_assets     = { version = "0.1.0", path = "crates/mcre_assets" }
+
+mcje            = { version = "0.1.0", path = "crates/mcje" }
+mcje_macros     = { version = "0.1.0", path = "crates/mcje_macros" }
 mcje_downloader = { version = "0.1.0", path = "crates/mcje_downloader" }
 
 serde        = { version = "1", features = ["derive"] }
@@ -33,6 +36,9 @@ zip          = "6"
 
 java-locator = "0.1"
 jni          = { version = "0.21", features = ["invocation"] }
+
+syn         = { version = "2.0", features = ["full"] }
+quote       = "1.0"
 
 [workspace.metadata.cargo-shear]
 ignored = ["mcre_assets"]

@@ -822,6 +822,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcje"
+version = "0.1.0"
+dependencies = [
+ "java-locator",
+ "jni",
+ "mcje_downloader",
+ "mcje_macros",
+ "tokio",
+]
+
+[[package]]
 name = "mcje_downloader"
 version = "0.1.0"
 dependencies = [
@@ -831,6 +842,14 @@ dependencies = [
  "reqwest",
  "serde",
  "url",
+]
+
+[[package]]
+name = "mcje_macros"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]
