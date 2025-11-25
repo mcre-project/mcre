@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+use std::{array, collections::HashMap};
 
 use mcre_core::{Axis, Direction, Vec3f, Vec4f};
 use serde::Deserialize;
 
-use crate::{BlockModelId, BlockTextureId, RefOr, RotationDegrees, TextureId};
+use crate::{BlockModelId, RefOr, ReferenceId, RotationDegrees, TextureId};
 
 #[derive(Debug, Clone)]
 pub struct BlockModelDefinition {
@@ -62,12 +62,199 @@ pub struct BlockModelElementRotation {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BlockModelFace {
-    pub texture: RefOr<BlockTextureId>,
+    pub texture: RefOr<TextureId>,
     #[serde(default)]
     pub rotation: RotationDegrees,
     pub uv: Option<Vec4f>,
     pub tintindex: Option<u8>,
     pub cullface: Option<Direction>,
+}
+
+impl BlockModelElementRotation {
+    pub fn apply_on_point(&self, point: Vec3f) -> Vec3f {
+        let mut point = point - self.origin;
+        let (sin, cos) = self.angle.sin_cos();
+
+        // Minecraft Java Edition Rescale Logic
+        // Formula: 1.0 / (|cos(angle)| + |sin(angle)|)
+        let scale = if self.rescale {
+            1.0 / (cos.abs() + sin.abs())
+        } else {
+            1.0
+        };
+
+        match self.axis {
+            Axis::X => {
+                let y = point[1];
+                let z = point[2];
+                // Rotate Y and Z, then apply scale
+                point[1] = (y * cos - z * sin) * scale;
+                point[2] = (y * sin + z * cos) * scale;
+            }
+            Axis::Y => {
+                let x = point[0];
+                let z = point[2];
+                // Rotate X and Z, then apply scale
+                point[0] = (x * cos + z * sin) * scale;
+                point[2] = (z * cos - x * sin) * scale;
+            }
+            Axis::Z => {
+                let x = point[0];
+                let y = point[1];
+                // Rotate X and Y, then apply scale
+                point[0] = (x * cos - y * sin) * scale;
+                point[1] = (x * sin + y * cos) * scale;
+            }
+        }
+        point + self.origin
+    }
+
+    // apply_on_quad remains the same, but must now also pass 'from' and 'to'
+    pub fn apply_on_quad(&self, quad: [Vec3f; 4]) -> [Vec3f; 4] {
+        array::from_fn(|i| self.apply_on_point(quad[i]))
+    }
+}
+
+fn build_quad(min: Vec3f, max: Vec3f, dir: Direction) -> [Vec3f; 4] {
+    // 1. The two axes that span the rectangle
+    let [a1, a2] = dir.axis().complementary_axes();
+
+    // 2. Get min/max for variable axes
+    let range = |axis: Axis| -> (f32, f32) {
+        let min = axis.select(min);
+        let max = axis.select(max);
+        (min, max)
+    };
+
+    let (a1_min, a1_max) = range(a1);
+    let (a2_min, a2_max) = range(a2);
+
+    // 3. Build the quad (CCW)
+    fn make(axis: Axis, v: f32, x: f32, y: f32, z: f32) -> Vec3f {
+        let mut out = Vec3f::new(x, y, z);
+        *axis.select_mut(&mut out) = v;
+        out
+    }
+
+    let axis = dir.axis();
+    let v = if dir.is_positive() {
+        axis.select(max)
+    } else {
+        axis.select(min)
+    };
+
+    [
+        make(axis, v, a1_min, a2_min, 0.0),
+        make(axis, v, a1_min, a2_max, 0.0),
+        make(axis, v, a1_max, a2_max, 0.0),
+        make(axis, v, a1_max, a2_min, 0.0),
+    ]
+}
+
+pub struct BakedQuad {
+    pub vertices: [Vec3f; 4],
+    pub uv: Vec4f,
+    pub texture: TextureId,
+    pub cullface: Option<Direction>,
+    pub tintindex: Option<u8>,
+    pub shade: bool,
+    pub light_emission: u8,
+}
+
+pub enum ModelBakeError {
+    TextureNotFound(String),
+    ParentNotFound(String),
+}
+
+impl BlockModelDefinition {
+    fn _build_texture_map<F>(
+        &self,
+        parent_resolver: F,
+        texture_map: &mut HashMap<ReferenceId, TextureId>,
+    ) -> Result<(), ModelBakeError>
+    where
+        F: Fn(&BlockModelId) -> Option<BlockModelDefinition>,
+    {
+        for (name, texture) in &self.textures {
+            if let RefOr::Value(texture_id) = texture {
+                texture_map.insert(ReferenceId::new(name.clone()), texture_id.clone());
+            }
+        }
+
+        self.parent.as_ref().map_or(Ok(()), |parent_id| {
+            parent_resolver(parent_id)
+                .ok_or_else(|| ModelBakeError::ParentNotFound(parent_id.to_string()))
+                .and_then(|parent| parent._build_texture_map(parent_resolver, texture_map))
+        })
+    }
+
+    pub fn build_texture_map<F>(
+        &self,
+        parent_resolver: F,
+    ) -> Result<HashMap<ReferenceId, TextureId>, ModelBakeError>
+    where
+        F: Fn(&BlockModelId) -> Option<BlockModelDefinition>,
+    {
+        let mut texture_map = HashMap::new();
+        self._build_texture_map(parent_resolver, &mut texture_map)?;
+        Ok(texture_map)
+    }
+
+    pub fn bake<F, E>(&self, parent_resolver: F) -> Result<(), ModelBakeError>
+    where
+        F: Fn(&BlockModelId) -> Option<BlockModelDefinition>,
+    {
+        let texture_map = self.build_texture_map(parent_resolver)?;
+
+        let mut quads = Vec::new();
+        for element in &self.elements {
+            let min = Vec3f::new(
+                element.from[0].min(element.to[0]),
+                element.from[1].min(element.to[1]),
+                element.from[2].min(element.to[2]),
+            );
+            let max = Vec3f::new(
+                element.from[0].max(element.to[0]),
+                element.from[1].max(element.to[1]),
+                element.from[2].max(element.to[2]),
+            );
+            for direction in Direction::ALL {
+                if let Some(face) = element.faces.get(&direction) {
+                    let quad_vertices = build_quad(min, max, direction);
+                    let rotated_quad_vertices = if let Some(rotation) = &element.rotation {
+                        rotation.apply_on_quad(quad_vertices)
+                    } else {
+                        quad_vertices
+                    };
+                    let uv = face.uv.unwrap_or(Vec4f::new(0.0, 0.0, 16.0, 16.0));
+                    let rotated_uv = face.rotation.rotate_uv(uv);
+
+                    let texture = match &face.texture {
+                        RefOr::Ref(id) => {
+                            if let Some(texture_id) = texture_map.get(id) {
+                                texture_id.clone()
+                            } else {
+                                return Err(ModelBakeError::TextureNotFound(id.to_string()));
+                            }
+                        }
+                        RefOr::Value(id) => id.clone(),
+                    };
+
+                    quads.push(BakedQuad {
+                        vertices: rotated_quad_vertices,
+                        uv: rotated_uv,
+                        texture,
+                        tintindex: face.tintindex,
+                        cullface: face.cullface,
+                        shade: element.shade,
+                        light_emission: element.light_emission,
+                    });
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
