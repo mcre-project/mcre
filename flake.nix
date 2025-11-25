@@ -28,7 +28,7 @@
 
               pkgs.clang
               pkgs.pkg-config
-              pkgs.openssl
+              pkgs.jdk21
               pkgs.git
             ];
 
