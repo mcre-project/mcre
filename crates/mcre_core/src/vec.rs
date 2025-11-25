@@ -2,17 +2,17 @@ use std::ops::{Index, IndexMut};
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Vec<T, const LEN: usize>([T; LEN]);
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct VecN<T, const LEN: usize>([T; LEN]);
 
-pub type Vec3i = Vec<i32, 3>;
-pub type Vec3u = Vec<u32, 3>;
-pub type Vec3f = Vec<f32, 3>;
-pub type Vec4i = Vec<i32, 4>;
-pub type Vec4u = Vec<u32, 4>;
-pub type Vec4f = Vec<f32, 4>;
+pub type Vec3i = VecN<i32, 3>;
+pub type Vec3u = VecN<u32, 3>;
+pub type Vec3f = VecN<f32, 3>;
+pub type Vec4i = VecN<i32, 4>;
+pub type Vec4u = VecN<u32, 4>;
+pub type Vec4f = VecN<f32, 4>;
 
-impl<T, const LEN: usize> Serialize for Vec<T, LEN>
+impl<T, const LEN: usize> Serialize for VecN<T, LEN>
 where
     [T; LEN]: Serialize,
 {
@@ -24,7 +24,7 @@ where
     }
 }
 
-impl<'de, T, const LEN: usize> Deserialize<'de> for Vec<T, LEN>
+impl<'de, T, const LEN: usize> Deserialize<'de> for VecN<T, LEN>
 where
     [T; LEN]: Deserialize<'de>,
 {
@@ -37,7 +37,7 @@ where
     }
 }
 
-impl<T, const LEN: usize> Vec<T, LEN> {
+impl<T, const LEN: usize> VecN<T, LEN> {
     pub fn get(&self, index: usize) -> Option<&T> {
         self.0.get(index)
     }
@@ -53,7 +53,21 @@ impl<T, const LEN: usize> Vec<T, LEN> {
     }
 }
 
-impl<T, const LEN: usize> Index<usize> for Vec<T, LEN> {
+impl<T, const LEN: usize> Deref for VecN<T, LEN> {
+    type Target = [T; LEN];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T, const LEN: usize> DerefMut for VecN<T, LEN> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<T, const LEN: usize> Index<usize> for VecN<T, LEN> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -61,7 +75,7 @@ impl<T, const LEN: usize> Index<usize> for Vec<T, LEN> {
     }
 }
 
-impl<T, const LEN: usize> IndexMut<usize> for Vec<T, LEN> {
+impl<T, const LEN: usize> IndexMut<usize> for VecN<T, LEN> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.0[index]
     }
