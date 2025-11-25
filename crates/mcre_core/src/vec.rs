@@ -1,4 +1,7 @@
-use std::ops::{Index, IndexMut};
+use std::{
+    array,
+    ops::{Add, Deref, DerefMut, Index, IndexMut, Sub},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -90,5 +93,21 @@ impl<T> VecN<T, 3> {
 impl<T> VecN<T, 4> {
     pub fn new(x: T, y: T, z: T, w: T) -> Self {
         Self([x, y, z, w])
+    }
+}
+
+impl<T: Add + Copy, const LEN: usize> Add for VecN<T, LEN> {
+    type Output = VecN<T::Output, LEN>;
+
+    fn add(self, other: Self) -> Self::Output {
+        VecN(array::from_fn(|i| self.0[i] + other.0[i]))
+    }
+}
+
+impl<T: Sub + Copy, const LEN: usize> Sub for VecN<T, LEN> {
+    type Output = VecN<T::Output, LEN>;
+
+    fn sub(self, other: Self) -> Self::Output {
+        VecN(array::from_fn(|i| self.0[i] - other.0[i]))
     }
 }
