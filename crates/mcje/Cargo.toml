@@ -15,10 +15,11 @@ rust-version.workspace = true
 mcje_macros     = { workspace = true }
 mcje_downloader = { workspace = true }
 
-tokio = { workspace = true }
-
-java-locator = { workspace = true }
-jni          = { workspace = true }
+jni = { workspace = true }
 
 [build-dependencies]
+mcje_downloader = { workspace = true }
+
+tokio = { workspace = true }
+
 java-locator = { workspace = true }
