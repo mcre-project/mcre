@@ -37,6 +37,8 @@ pub struct BlockState {
     pub requires_correct_tool_for_drops: bool,
     pub destroy_speed: f32,
     pub offset_type: OffsetType,
+    pub max_horizontal_offset: f32,
+    pub max_vertical_offset: f32,
     pub state_values: IndexMap<String, StateValue>,
 }
 

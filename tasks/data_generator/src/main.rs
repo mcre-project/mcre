@@ -286,6 +286,18 @@ fn process_block_state(
 
     let offset_type = determine_offset_type(block_state, env);
 
+    let max_horizontal_offset = env
+        .call_method(&block, "getMaxHorizontalOffset", "()F", &[])
+        .unwrap()
+        .f()
+        .unwrap();
+
+    let max_vertical_offset = env
+        .call_method(&block, "getMaxVerticalOffset", "()F", &[])
+        .unwrap()
+        .f()
+        .unwrap();
+
     let state_values = get_state_values(block_state, env);
 
     BlockState {
@@ -306,6 +318,8 @@ fn process_block_state(
         requires_correct_tool_for_drops,
         destroy_speed,
         offset_type,
+        max_horizontal_offset,
+        max_vertical_offset,
         state_values,
     }
 }
