@@ -5,6 +5,7 @@ use jni::{
     JNIEnv,
     objects::{JObject, JString, JValueGen},
 };
+use mcje::{get_registry, iterate};
 use mcre_core::StateValue;
 use mcre_data::{
     block::{Block, BlockStateField, BlockStateFieldValues},
@@ -16,7 +17,6 @@ const BLOCK_STATE_DATA_PATH: &str = "crates/mcre_data/block_states.json";
 
 #[mcje::main]
 async fn main(env: &mut JNIEnv<'_>) {
-    init(env);
     generate_block_data(env);
     generate_block_state_data(env);
 }
@@ -286,6 +286,18 @@ fn process_block_state(
 
     let offset_type = determine_offset_type(block_state, env);
 
+    let max_horizontal_offset = env
+        .call_method(&block, "getMaxHorizontalOffset", "()F", &[])
+        .unwrap()
+        .f()
+        .unwrap();
+
+    let max_vertical_offset = env
+        .call_method(&block, "getMaxVerticalOffset", "()F", &[])
+        .unwrap()
+        .f()
+        .unwrap();
+
     let state_values = get_state_values(block_state, env);
 
     BlockState {
@@ -306,6 +318,8 @@ fn process_block_state(
         requires_correct_tool_for_drops,
         destroy_speed,
         offset_type,
+        max_horizontal_offset,
+        max_vertical_offset,
         state_values,
     }
 }
@@ -416,82 +430,6 @@ fn get_state_values(block_state: &JObject, env: &mut JNIEnv) -> IndexMap<String,
     });
 
     values
-}
-
-fn iterate<'a>(
-    obj: &JObject<'a>,
-    env: &'a mut JNIEnv,
-    mut cb: impl FnMut(usize, JObject<'a>, &mut JNIEnv),
-) {
-    let iterator = env
-        .call_method(obj, "iterator", "()Ljava/util/Iterator;", &[])
-        .unwrap()
-        .l()
-        .unwrap();
-
-    let mut i = 0;
-    loop {
-        // call hasNext()
-        let has_next = env
-            .call_method(&iterator, "hasNext", "()Z", &[])
-            .unwrap()
-            .z()
-            .unwrap();
-        if !has_next {
-            break;
-        }
-
-        // call next()
-        let element = env
-            .call_method(&iterator, "next", "()Ljava/lang/Object;", &[])
-            .unwrap()
-            .l()
-            .unwrap();
-
-        cb(i, element, env);
-
-        i += 1;
-    }
-}
-
-fn init(env: &mut JNIEnv) {
-    let detected_version_built_in = env
-        .get_static_field(
-            "net/minecraft/DetectedVersion",
-            "BUILT_IN",
-            "Lnet/minecraft/WorldVersion;",
-        )
-        .unwrap()
-        .l()
-        .unwrap();
-
-    println!("[DEBUG] Calling: SharedConstants.setVersion(DetectedVersion.BUILT_IN);");
-    env.call_static_method(
-        "net/minecraft/SharedConstants",
-        "setVersion",
-        "(Lnet/minecraft/WorldVersion;)V",
-        &[JValueGen::Object(&detected_version_built_in)],
-    )
-    .unwrap();
-
-    println!("[DEBUG] Calling: Bootstrap.bootStrap();");
-    env.call_static_method("net/minecraft/server/Bootstrap", "bootStrap", "()V", &[])
-        .unwrap();
-}
-
-fn get_registry<'a>(env: &mut JNIEnv<'a>, name: &str, jtype: &str) -> JObject<'a> {
-    let built_in_registries = env
-        .find_class("net/minecraft/core/registries/BuiltInRegistries")
-        .unwrap();
-
-    env.get_static_field(
-        built_in_registries,
-        name,
-        format!("Lnet/minecraft/core/{jtype};"),
-    )
-    .unwrap()
-    .l()
-    .unwrap()
 }
 
 fn get_block_display_name(env: &mut JNIEnv, block: &JObject) -> String {
