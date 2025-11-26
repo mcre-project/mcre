@@ -26,7 +26,7 @@ impl BlockPos {
             .wrapping_mul(42_317_861)
             .wrapping_add(i.wrapping_mul(11));
 
-        i
+        i >> 16
     }
 }
 
