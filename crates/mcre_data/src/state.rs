@@ -50,6 +50,13 @@ pub enum OffsetType {
     XYZ,
 }
 
+impl BlockState {
+    pub fn random_offset(&self, pos: BlockPos) -> (f64, f64, f64) {
+        self.offset_type
+            .offset(pos, self.max_horizontal_offset, self.max_vertical_offset)
+    }
+}
+
 impl OffsetType {
     #[inline]
     fn extract(seed: i64, shift: u32, scale: f32, base: f32) -> f32 {
@@ -58,21 +65,36 @@ impl OffsetType {
     }
 
     #[inline]
-    pub fn offset(&self, pos: BlockPos) -> (f32, f32, f32) {
+    pub fn offset(
+        &self,
+        mut pos: BlockPos,
+        max_horizontal_offset: f32,
+        max_vertical_offset: f32,
+    ) -> (f64, f64, f64) {
         match self {
             Self::None => (0.0, 0.0, 0.0),
             Self::XZ => {
+                pos.y = 0;
                 let seed = pos.seed();
-                let x = Self::extract(seed, 16, 0.5, 0.5);
-                let z = Self::extract(seed, 24, 0.5, 0.5);
-                (x, 0.0, z)
+                let x = Self::extract(seed, 0, 0.5, 0.5) as f64;
+                let z = Self::extract(seed, 8, 0.5, 0.5) as f64;
+                (
+                    x.clamp(-max_horizontal_offset as f64, max_horizontal_offset as f64),
+                    0.0,
+                    z.clamp(-max_horizontal_offset as f64, max_horizontal_offset as f64),
+                )
             }
             Self::XYZ => {
+                pos.y = 0;
                 let seed = pos.seed();
-                let x = Self::extract(seed, 16, 0.5, 0.5);
-                let y = Self::extract(seed, 20, 0.2, 1.0);
-                let z = Self::extract(seed, 24, 0.5, 0.5);
-                (x, y, z)
+                let x = Self::extract(seed, 0, 0.5, 0.5) as f64;
+                let y = Self::extract(seed, 4, max_vertical_offset, 1.0);
+                let z = Self::extract(seed, 8, 0.5, 0.5) as f64;
+                (
+                    x.clamp(-max_horizontal_offset as f64, max_horizontal_offset as f64),
+                    y as f64,
+                    z.clamp(-max_horizontal_offset as f64, max_horizontal_offset as f64),
+                )
             }
         }
     }
