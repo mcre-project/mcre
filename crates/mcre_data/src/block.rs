@@ -8,7 +8,7 @@ pub struct Block {
     pub id: u16,
     pub name: String,         // "oak_planks"
     pub display_name: String, // "Oak Planks",
-    pub default_state: u16,
+    pub default_state_id: u16,
     pub min_state_id: u16,
     pub max_state_id: u16,
     pub states: Vec<BlockStateField>,

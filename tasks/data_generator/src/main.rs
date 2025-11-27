@@ -99,7 +99,7 @@ fn generate_block_data(env: &mut JNIEnv) {
             id: i as u16,
             name,
             display_name,
-            default_state: default_state_id,
+            default_state_id,
             min_state_id,
             max_state_id,
             states,
