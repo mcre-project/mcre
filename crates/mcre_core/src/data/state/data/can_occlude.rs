@@ -1,10 +1,7 @@
-static VALUES: [u8; 3709] = *include_bytes!("./can_occlude.bin");
-
+static VALUES: [u8; 3709usize] = *include_bytes!("./can_occlude.bin");
 pub(crate) fn get(idx: u16) -> bool {
-    let byte = idx / 8;
-    let bit = idx % 8;
-
-    let byte = VALUES[byte as usize];
-
-    ((byte >> bit) & 1) == 1
+    let byte_pos = idx / 8;
+    let bit_pos = idx % 8;
+    let byte = VALUES[byte_pos as usize];
+    ((byte >> bit_pos) & 1) == 1
 }

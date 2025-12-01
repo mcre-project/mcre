@@ -1,10 +1,7 @@
-static VALUES: [u8; 7418] = *include_bytes!("./offset_type.bin");
-
+static VALUES: [u8; 7418usize] = *include_bytes!("./offset_type.bin");
 pub(crate) fn get(idx: u16) -> u8 {
-    let byte = idx / 4;
-    let bit = idx % 4;
-
-    let byte = VALUES[byte as usize];
-
-    (byte >> bit) & 3
+    let byte_pos = idx / 4u16;
+    let bit_pos = idx % 4u16;
+    let byte = VALUES[byte_pos as usize];
+    (byte >> bit_pos) & 3u8
 }

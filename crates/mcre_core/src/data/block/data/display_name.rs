@@ -1,4 +1,4 @@
-static VALUES: [&str; 1166] = [
+static VALUES: [&str; 1166usize] = [
     "Air",
     "Stone",
     "Granite",
@@ -1166,7 +1166,6 @@ static VALUES: [&str; 1166] = [
     "Potted Closed Eyeblossom",
     "Firefly Bush",
 ];
-
 pub(crate) fn get(idx: u16) -> &'static str {
     VALUES[idx as usize]
 }
