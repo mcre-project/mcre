@@ -1,9 +1,10 @@
-use core::fmt;
-use std::{collections::HashMap, slice};
+use core::{fmt, ops::Deref, slice};
 
-use indexmap::IndexMap;
-use mcre_core::Vec4f;
-use mcre_data::state::StateValue;
+use alloc::{
+    boxed::Box,
+    vec::{self, Vec},
+};
+use mcre_core::{PropFilter, PropVal, StateId, Vec4f};
 use serde::{Deserialize, Deserializer};
 
 use crate::BlockModelId;
@@ -12,7 +13,7 @@ use crate::BlockModelId;
 #[derive(Debug, Clone)]
 pub struct VariantEntry {
     /// Parsed from the JSON map key (e.g., "face=ceiling,facing=east")
-    pub filter: HashMap<String, StateValue>,
+    pub filter: Vec<PropVal>,
     /// The value of the JSON map entry
     pub definition: VariantDefinition,
 }
@@ -23,7 +24,7 @@ pub struct VariantEntry {
 pub struct VariantEntries(pub Vec<VariantEntry>);
 
 // Allow accessing the inner Vec easily
-impl std::ops::Deref for VariantEntries {
+impl Deref for VariantEntries {
     type Target = Vec<VariantEntry>;
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -32,7 +33,7 @@ impl std::ops::Deref for VariantEntries {
 
 impl IntoIterator for VariantEntries {
     type Item = VariantEntry;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
+    type IntoIter = vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -93,7 +94,7 @@ pub struct MultipartRule {
 
 #[derive(Debug, Clone)]
 pub enum Condition {
-    KeyValue(String, Vec<StateValue>),
+    KeyValue(PropFilter),
     And(Vec<Condition>),
     Or(Vec<Condition>),
 }
@@ -125,21 +126,17 @@ impl RotationDegrees {
 }
 
 impl Condition {
-    pub fn test(&self, state_values: &IndexMap<String, StateValue>) -> bool {
+    pub fn test(&self, state: StateId) -> bool {
         match self {
-            Condition::KeyValue(key, condition_values) => {
-                if let Some(value) = state_values.get(key) {
-                    condition_values.contains(value)
+            Condition::KeyValue(filter) => {
+                if let Some(val) = state.get_prop(filter.key()) {
+                    filter.test(val)
                 } else {
                     false
                 }
             }
-            Condition::And(conditions) => conditions
-                .iter()
-                .all(|condition| condition.test(state_values)),
-            Condition::Or(conditions) => conditions
-                .iter()
-                .any(|condition| condition.test(state_values)),
+            Condition::And(conditions) => conditions.iter().all(|condition| condition.test(state)),
+            Condition::Or(conditions) => conditions.iter().any(|condition| condition.test(state)),
         }
     }
 }
@@ -150,19 +147,16 @@ pub enum BlockModelResolution<'a> {
 }
 
 impl BlockStateDefinition {
-    pub fn resolve<'a>(
-        &'a self,
-        state_values: &IndexMap<String, StateValue>,
-    ) -> Option<BlockModelResolution<'a>> {
+    pub fn resolve<'a>(&'a self, state: StateId) -> Option<BlockModelResolution<'a>> {
         match self {
             Self::Variants(variants) => {
                 'variant_loop: for variant in variants.iter() {
-                    for (key, value) in &variant.filter {
-                        let Some(state_value) = state_values.get(key) else {
+                    for filter in &variant.filter {
+                        let Some(val) = state.get_prop(filter.key()) else {
                             continue 'variant_loop;
                         };
 
-                        if state_value != value {
+                        if val != *filter {
                             continue 'variant_loop;
                         };
                     }
@@ -182,7 +176,7 @@ impl BlockStateDefinition {
 
                 for rule in rules {
                     let condition_met = if let Some(condition) = &rule.when {
-                        condition.test(state_values)
+                        condition.test(state)
                     } else {
                         true
                     };
@@ -207,7 +201,7 @@ impl BlockStateDefinition {
 
 #[cfg(test)]
 mod tests {
-    use mcre_data::state::BlockState;
+    use mcre_core::StateId;
 
     use crate::blockstates::{BlockModelResolution, BlockStateDefinition};
     use std::{
@@ -229,9 +223,13 @@ mod tests {
         let mut block_state_definitions = HashMap::new();
 
         for entry in fs::read_dir(&root_dir).unwrap() {
-            total += 1;
             let entry = entry.unwrap();
             let path = entry.path();
+            // TODO(a-rustacean): are item frames blocks?
+            if path.ends_with("item_frame.json") || path.ends_with("glow_item_frame.json") {
+                continue;
+            }
+            total += 1;
             let file = File::open(&path).unwrap();
 
             let file_name = path.file_name().unwrap().to_str().unwrap();
@@ -260,25 +258,30 @@ mod tests {
         assert_eq!(passed, total);
 
         // resolution
-        let block_states = BlockState::all().await.unwrap();
 
-        for block_state in block_states {
+        for state_id in 0..(StateId::MAX.into()) {
+            let state_id = StateId::from(state_id);
+
             let definition = block_state_definitions
-                .get(&block_state.block_name)
+                .get(state_id.block_id().name())
                 .unwrap();
-            let resolution = definition.resolve(&block_state.state_values).unwrap();
+            state_id
+                .block_id()
+                .is_field_present(mcre_core::FieldKey::IsSnowy);
+            let resolution = definition.resolve(state_id).unwrap();
+
             match resolution {
                 BlockModelResolution::Unified(models) => assert!(
                     !models.is_empty(),
-                    "Block: {}, variant: {:?}",
-                    block_state.block_name,
-                    block_state.state_values
+                    "Block: {}, StateId: {:?}",
+                    state_id.block_id().name(),
+                    state_id
                 ),
                 BlockModelResolution::Multipart(model_lists) => assert!(
-                    block_state.block_name.ends_with("wall") || !model_lists.is_empty(),
-                    "Block: {}, variant: {:?}",
-                    block_state.block_name,
-                    block_state.state_values
+                    state_id.block_id().name().ends_with("wall") || !model_lists.is_empty(),
+                    "Block: {}, StateId: {:?}",
+                    state_id.block_id().name(),
+                    state_id
                 ),
             }
         }
@@ -286,7 +289,13 @@ mod tests {
 }
 
 mod de_impl {
+    use core::str::FromStr;
+
+    use crate::FxHashMap;
+
     use super::*;
+    use alloc::string::String;
+    use mcre_core::PropKey;
     use serde::{
         Deserialize,
         de::{self, MapAccess, Unexpected, Visitor},
@@ -393,37 +402,45 @@ mod de_impl {
                     or: Vec<Helper>,
                 },
                 Single(SingleCond),
-                ImplicitAnd(HashMap<String, String>),
+                ImplicitAnd(FxHashMap<String, String>),
             }
 
-            impl From<Helper> for Condition {
-                fn from(value: Helper) -> Self {
+            impl TryFrom<Helper> for Condition {
+                type Error = ();
+
+                fn try_from(value: Helper) -> Result<Self, ()> {
                     match value {
-                        Helper::Single(single) => Condition::KeyValue(
-                            single.0,
-                            single.1.split('|').map(parse_state_value).collect(),
-                        ),
-                        Helper::ExplicitAnd { and } => {
-                            Condition::And(and.into_iter().map(Into::into).collect())
-                        }
-                        Helper::Or { or } => {
-                            Condition::Or(or.into_iter().map(Into::into).collect())
-                        }
-                        Helper::ImplicitAnd(and) => Condition::And(
+                        Helper::Single(single) => Ok(Condition::KeyValue({
+                            let key = PropKey::from_str(&single.0)?;
+                            PropFilter::parse_with_key(key, &single.1).ok_or(())?
+                        })),
+                        Helper::ExplicitAnd { and } => Ok(Condition::And(
+                            and.into_iter()
+                                .map(TryInto::<Condition>::try_into)
+                                .collect::<Result<Vec<_>, _>>()?,
+                        )),
+                        Helper::Or { or } => Ok(Condition::Or(
+                            or.into_iter()
+                                .map(TryInto::<Condition>::try_into)
+                                .collect::<Result<Vec<_>, _>>()?,
+                        )),
+                        Helper::ImplicitAnd(and) => Ok(Condition::And(
                             and.into_iter()
                                 .map(|(key, val)| {
-                                    Condition::KeyValue(
-                                        key,
-                                        val.split('|').map(parse_state_value).collect(),
-                                    )
+                                    let key = PropKey::from_str(&key)?;
+                                    PropFilter::parse_with_key(key, &val)
+                                        .ok_or(())
+                                        .map(Condition::KeyValue)
                                 })
-                                .collect(),
-                        ),
+                                .collect::<Result<Vec<_>, _>>()?,
+                        )),
                     }
                 }
             }
 
-            Ok(Helper::deserialize(deserializer)?.into())
+            Helper::deserialize(deserializer)?
+                .try_into()
+                .map_err(|_| de::Error::custom("failed to parse fields"))
         }
     }
 
@@ -453,7 +470,8 @@ mod de_impl {
                     while let Some((key_str, definition)) =
                         access.next_entry::<String, VariantDefinition>()?
                     {
-                        let filter = parse_variant_key(&key_str);
+                        let filter = parse_variant_key(&key_str)
+                            .ok_or_else(|| de::Error::custom("failed to parse fields"))?;
                         variants.push(VariantEntry { filter, definition });
                     }
 
@@ -465,37 +483,19 @@ mod de_impl {
         }
     }
 
-    /// Helper to parse "face=ceiling,powered=true" into a HashMap
-    fn parse_variant_key(key: &str) -> HashMap<String, StateValue> {
-        let mut map = HashMap::new();
+    /// Helper to parse "face=ceiling,powered=true" into a `Vec<PropVal>`
+    fn parse_variant_key(key: &str) -> Option<Vec<PropVal>> {
+        let mut list = Vec::new();
 
         // Handle empty key or "normal" (legacy/default)
         if key.is_empty() || key == "normal" {
-            return map;
+            return Some(list);
         }
 
         for part in key.split(',') {
-            // Split "key=value"
-            if let Some((k, v)) = part.split_once('=') {
-                map.insert(k.to_string(), parse_state_value(v));
-            } else {
-                // Fallback for malformed strings or single keys without values (rare in MC)
-                // We treat the whole part as a key with an empty string value,
-                // or you could ignore it.
-                map.insert(part.to_string(), StateValue::String(String::new()));
-            }
+            let val = PropVal::from_str(part).ok()?;
+            list.push(val);
         }
-        map
-    }
-
-    /// Helper to infer type (Int -> Bool -> String)
-    fn parse_state_value(v: &str) -> StateValue {
-        if let Ok(b) = v.parse::<bool>() {
-            StateValue::Bool(b)
-        } else if let Ok(i) = v.parse::<u8>() {
-            StateValue::Int(i)
-        } else {
-            StateValue::String(v.to_string())
-        }
+        Some(list)
     }
 }

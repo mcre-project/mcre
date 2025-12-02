@@ -1,9 +1,14 @@
-use std::{
+use core::{
     any::type_name,
     fmt::{self, Debug, Display},
     marker::PhantomData,
 };
 
+use alloc::{
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 use serde::{Deserialize, Deserializer};
 
 pub struct NamespacedId<S> {

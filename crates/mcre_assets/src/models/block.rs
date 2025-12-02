@@ -1,9 +1,13 @@
-use std::{array, collections::HashMap};
+use core::array;
 
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use mcre_core::{Axis, Direction, Vec3f, Vec4f};
 use serde::Deserialize;
 
-use crate::{BlockModelId, RefOr, ReferenceId, RotationDegrees, TextureId};
+use crate::{BlockModelId, FxHashMap, RefOr, ReferenceId, RotationDegrees, TextureId};
 
 #[derive(Debug, Clone)]
 pub struct BlockModelDefinition {
@@ -11,8 +15,8 @@ pub struct BlockModelDefinition {
     pub parent: Option<BlockModelId>,
     pub ambientocclusion: bool,
     pub elements: Vec<BlockModelElement>,
-    pub textures: HashMap<String, RefOr<TextureId>>,
-    pub display: HashMap<String, Transform>,
+    pub textures: FxHashMap<String, RefOr<TextureId>>,
+    pub display: FxHashMap<String, Transform>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -38,7 +42,7 @@ pub struct BlockModelElement {
     pub from: Vec3f,
     pub to: Vec3f,
     pub rotation: Option<BlockModelElementRotation>,
-    pub faces: HashMap<Direction, BlockModelFace>,
+    pub faces: FxHashMap<Direction, BlockModelFace>,
     #[serde(default = "default_shade")]
     pub shade: bool,
     #[serde(default)]
@@ -170,7 +174,7 @@ impl BlockModelDefinition {
     fn _build_texture_map<F>(
         &self,
         parent_resolver: F,
-        texture_map: &mut HashMap<ReferenceId, TextureId>,
+        texture_map: &mut FxHashMap<ReferenceId, TextureId>,
     ) -> Result<(), ModelBakeError>
     where
         F: Fn(&BlockModelId) -> Option<BlockModelDefinition>,
@@ -191,11 +195,11 @@ impl BlockModelDefinition {
     pub fn build_texture_map<F>(
         &self,
         parent_resolver: F,
-    ) -> Result<HashMap<ReferenceId, TextureId>, ModelBakeError>
+    ) -> Result<FxHashMap<ReferenceId, TextureId>, ModelBakeError>
     where
         F: Fn(&BlockModelId) -> Option<BlockModelDefinition>,
     {
-        let mut texture_map = HashMap::new();
+        let mut texture_map = FxHashMap::default();
         self._build_texture_map(parent_resolver, &mut texture_map)?;
         Ok(texture_map)
     }
@@ -260,12 +264,11 @@ impl BlockModelDefinition {
 #[cfg(test)]
 mod tests {
     use std::{
-        collections::HashMap,
         fs::{self, File},
         path::PathBuf,
     };
 
-    use crate::block::BlockModelDefinition;
+    use crate::{FxHashMap, block::BlockModelDefinition};
 
     #[tokio::test]
     async fn test_parse_block_model_definition() {
@@ -277,7 +280,7 @@ mod tests {
         let mut passed = 0;
         let mut failed = Vec::new();
 
-        let mut block_state_definitions = HashMap::new();
+        let mut block_state_definitions = FxHashMap::default();
 
         for entry in fs::read_dir(&root_dir).unwrap() {
             total += 1;
@@ -313,13 +316,14 @@ mod tests {
 }
 
 mod de_impl {
-    use std::collections::HashMap;
+    use core::fmt;
 
+    use alloc::{string::String, vec::Vec};
     use serde::{Deserialize, Deserializer, de};
     use serde_json::Value;
 
     use crate::{
-        BlockModelId, RefOr, TextureId,
+        BlockModelId, FxHashMap, RefOr, TextureId,
         block::{
             BlockModelDefinition, BlockModelElement, GuiLight, Transform, default_ambientocclusion,
         },
@@ -347,7 +351,7 @@ mod de_impl {
             impl<'de> de::Visitor<'de> for BlockModelDefinitionVisitor {
                 type Value = BlockModelDefinition;
 
-                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                     formatter.write_str("struct BlockModelDefinition")
                 }
 
@@ -361,8 +365,8 @@ mod de_impl {
                     let mut parent: Option<Option<BlockModelId>> = None;
                     let mut ambientocclusion: Option<bool> = None;
                     let mut elements: Option<Vec<BlockModelElement>> = None;
-                    let mut textures: Option<HashMap<String, RefOr<TextureId>>> = None;
-                    let mut display: Option<HashMap<String, Transform>> = None;
+                    let mut textures: Option<FxHashMap<String, RefOr<TextureId>>> = None;
+                    let mut display: Option<FxHashMap<String, Transform>> = None;
 
                     // Loop over key-value pairs in the input map
                     while let Some(key) = map.next_key::<String>()? {
@@ -396,9 +400,9 @@ mod de_impl {
                                     return Err(de::Error::duplicate_field("textures"));
                                 }
 
-                                let raw_map: HashMap<String, Value> = map.next_value()?;
+                                let raw_map: FxHashMap<String, Value> = map.next_value()?;
 
-                                let mut filtered_map = HashMap::new();
+                                let mut filtered_map = FxHashMap::default();
 
                                 for (key, value) in raw_map {
                                     if let Value::String(s) = &value
