@@ -16,11 +16,10 @@ mcre_core = { workspace = true }
 
 serde      = { workspace = true }
 serde_json = { workspace = true }
-indexmap   = { workspace = true }
+hashbrown  = { workspace = true }
+rustc-hash = { workspace = true }
 
 [dev-dependencies]
-mcre_data = { workspace = true }
-
 tokio = { workspace = true }
 
 [build-dependencies]
