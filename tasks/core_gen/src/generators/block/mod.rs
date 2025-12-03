@@ -20,7 +20,7 @@ impl<'a> ScopeGen<'a> for BlockScope<'a> {
                 Box::new(BlockRootUnit {
                     blocks: self.blocks,
                 }),
-                Box::new(AllBlocksUnit {
+                Box::new(BlockConstsUnit {
                     blocks: self.blocks,
                 }),
             ]),
@@ -40,7 +40,7 @@ impl UnitGen for BlockRootUnit<'_> {
         let max = self.blocks.last().unwrap().id;
         let code = quote! {
             mod data;
-            mod all;
+            mod consts;
 
             use crate::{StateId, FieldKey};
 
@@ -97,11 +97,11 @@ impl UnitGen for BlockRootUnit<'_> {
     }
 }
 
-pub struct AllBlocksUnit<'a> {
+pub struct BlockConstsUnit<'a> {
     blocks: &'a [Block],
 }
 
-impl UnitGen for AllBlocksUnit<'_> {
+impl UnitGen for BlockConstsUnit<'_> {
     fn generate(&self, _analysis: &Analysis) -> Unit {
         let consts = self.blocks.iter().map(|block| {
             let name = format_ident!("{}", block.name.to_uppercase());
@@ -119,7 +119,7 @@ impl UnitGen for AllBlocksUnit<'_> {
         };
 
         Unit {
-            name: "all".to_string(),
+            name: "consts".to_string(),
             code,
             data: None,
         }
