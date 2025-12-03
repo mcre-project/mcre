@@ -1,4 +1,5 @@
 mod data;
+mod all;
 use crate::{StateId, FieldKey};
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct BlockId(u16);

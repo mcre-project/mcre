@@ -6,7 +6,7 @@ use crate::{
 };
 
 use mcre_data::block::Block;
-use quote::quote;
+use quote::{format_ident, quote};
 
 pub struct BlockScope<'a> {
     pub blocks: &'a [Block],
@@ -16,9 +16,14 @@ impl<'a> ScopeGen<'a> for BlockScope<'a> {
     fn generate(&self, _analysis: &Analysis) -> Scope<'a> {
         Scope {
             name: "block".to_string(),
-            units: Box::new([Box::new(BlockRootUnit {
-                blocks: self.blocks,
-            })]),
+            units: Box::new([
+                Box::new(BlockRootUnit {
+                    blocks: self.blocks,
+                }),
+                Box::new(AllBlocksUnit {
+                    blocks: self.blocks,
+                }),
+            ]),
             sub_scopes: Box::new([Box::new(BlockDataScope {
                 blocks: self.blocks,
             })]),
@@ -35,6 +40,7 @@ impl UnitGen for BlockRootUnit<'_> {
         let max = self.blocks.last().unwrap().id;
         let code = quote! {
             mod data;
+            mod all;
 
             use crate::{StateId, FieldKey};
 
@@ -85,6 +91,35 @@ impl UnitGen for BlockRootUnit<'_> {
 
         Unit {
             name: "mod".to_string(),
+            code,
+            data: None,
+        }
+    }
+}
+
+pub struct AllBlocksUnit<'a> {
+    blocks: &'a [Block],
+}
+
+impl UnitGen for AllBlocksUnit<'_> {
+    fn generate(&self, _analysis: &Analysis) -> Unit {
+        let consts = self.blocks.iter().map(|block| {
+            let name = format_ident!("{}", block.name.to_uppercase());
+            let id = block.id;
+            quote! {
+                pub const #name: Self = Self(#id);
+            }
+        });
+        let code = quote! {
+            use super::BlockId;
+
+            impl BlockId {
+                #( #consts )*
+            }
+        };
+
+        Unit {
+            name: "all".to_string(),
             code,
             data: None,
         }
