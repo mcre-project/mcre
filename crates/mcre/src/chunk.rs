@@ -73,10 +73,10 @@ impl Chunk {
     fn generate_mesh(&self, textures: &BlockTextures) -> Mesh {
         #[derive(Default)]
         struct VerticesBuilder {
-            verticies: Vec<[f32; 3]>,
+            vertices: Vec<[f32; 3]>,
             normals: Vec<[f32; 3]>,
             uvs: Vec<[f32; 2]>,
-            indicies: Vec<u32>,
+            indices: Vec<u32>,
             vert_colors: Vec<[f32; 4]>,
         }
 
@@ -84,7 +84,7 @@ impl Chunk {
         // -X is West, +X is East
         impl VerticesBuilder {
             fn push_north(&mut self, cur: UVec3, uv: Rect, face_color: Srgba) {
-                self.push_indicies();
+                self.push_indices();
                 self.push_face_color(face_color);
                 let (x, y, z) = (cur.x as f32, cur.y as f32, cur.z as f32);
                 let normal = [0., 0., -1.];
@@ -95,7 +95,7 @@ impl Chunk {
             }
 
             fn push_east(&mut self, cur: UVec3, uv: Rect, face_color: Srgba) {
-                self.push_indicies();
+                self.push_indices();
                 self.push_face_color(face_color);
                 let (x, y, z) = (cur.x as f32, cur.y as f32, cur.z as f32);
                 let normal = [-1., 0., 0.];
@@ -106,7 +106,7 @@ impl Chunk {
             }
 
             fn push_south(&mut self, cur: UVec3, uv: Rect, face_color: Srgba) {
-                self.push_indicies();
+                self.push_indices();
                 self.push_face_color(face_color);
                 let (x, y, z) = (cur.x as f32, cur.y as f32, cur.z as f32);
                 let normal = [0., 0., 1.];
@@ -117,7 +117,7 @@ impl Chunk {
             }
 
             fn push_west(&mut self, cur: UVec3, uv: Rect, face_color: Srgba) {
-                self.push_indicies();
+                self.push_indices();
                 self.push_face_color(face_color);
                 let (x, y, z) = (cur.x as f32, cur.y as f32, cur.z as f32);
                 let normal = [1., 0., 0.];
@@ -128,7 +128,7 @@ impl Chunk {
             }
 
             fn push_up(&mut self, cur: UVec3, uv: Rect, face_color: Srgba) {
-                self.push_indicies();
+                self.push_indices();
                 self.push_face_color(face_color);
                 let (x, y, z) = (cur.x as f32, cur.y as f32, cur.z as f32);
                 let normal = [0., 1., 0.];
@@ -139,7 +139,7 @@ impl Chunk {
             }
 
             fn push_down(&mut self, cur: UVec3, uv: Rect, face_color: Srgba) {
-                self.push_indicies();
+                self.push_indices();
                 self.push_face_color(face_color);
                 let (x, y, z) = (cur.x as f32, cur.y as f32, cur.z as f32);
                 let normal = [0., -1., 0.];
@@ -149,21 +149,21 @@ impl Chunk {
                 self.push([x + 1., y + 0., z + 1.], normal, [uv.max.x, uv.min.y]);
             }
 
-            fn push_indicies(&mut self) {
-                let vertex_count = self.verticies.len() as u32;
+            fn push_indices(&mut self) {
+                let vertex_count = self.vertices.len() as u32;
 
                 // 0, 3, 1, 1, 3, 2, // triangles making up the top (+y) facing side.
-                self.indicies.push(vertex_count);
-                self.indicies.push(vertex_count + 3);
-                self.indicies.push(vertex_count + 1);
+                self.indices.push(vertex_count);
+                self.indices.push(vertex_count + 3);
+                self.indices.push(vertex_count + 1);
 
-                self.indicies.push(vertex_count + 1);
-                self.indicies.push(vertex_count + 3);
-                self.indicies.push(vertex_count + 2);
+                self.indices.push(vertex_count + 1);
+                self.indices.push(vertex_count + 3);
+                self.indices.push(vertex_count + 2);
             }
 
             fn push(&mut self, vertex: [f32; 3], normal: [f32; 3], uv: [f32; 2]) {
-                self.verticies.push(vertex);
+                self.vertices.push(vertex);
                 self.normals.push(normal);
                 self.uvs.push(uv);
             }
@@ -238,10 +238,10 @@ impl Chunk {
             PrimitiveTopology::TriangleList,
             RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
         )
-        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, builder.verticies)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, builder.vertices)
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, builder.uvs)
         .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, builder.normals)
         .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, builder.vert_colors)
-        .with_inserted_indices(Indices::U32(builder.indicies))
+        .with_inserted_indices(Indices::U32(builder.indices))
     }
 }
