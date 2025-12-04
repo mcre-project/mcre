@@ -121,10 +121,16 @@ impl UnitGen for BlockRootUnit<'_> {
                 }
 
                 fn size_hint(&self) -> (usize, Option<usize>) {
-                    let remaining = (self.end - self.current) as usize;
+                    let remaining = if self.current > self.end {
+                        0
+                    } else {
+                        (self.end - self.current + 1) as usize
+                    };
                     (remaining, Some(remaining))
                 }
             }
+
+            impl ExactSizeIterator for BlockIdIter {}
         };
 
         Unit {
