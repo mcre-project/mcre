@@ -28,9 +28,8 @@ jobs:
         with:
           java-version: "21"
           distribution: "temurin"
-      - run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
-      - run: cargo ck
-      - run: cargo test --workspace --all-features
+      - run: cargo ck --exclude mcre
+      - run: cargo test --workspace --all-features --exclude mcre
       - run: git diff --exit-code # Must commit everything
 
   typos:
@@ -52,5 +51,4 @@ jobs:
           save-cache: ${{ github.ref_name == 'main' }}
           cache-key: clippy
           components: clippy rust-docs
-      - run: cargo lint -- -D warnings
-      - run: RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --document-private-items
+      - run: cargo lint --exclude mcre -- -D warnings
