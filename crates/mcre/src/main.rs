@@ -13,7 +13,8 @@ use mcre_core::BlockId;
 use crate::{
     camera::FirstPersonPlugin,
     chunk::{CHUNK_SIZE, Chunk},
-    textures::{BlockTextures, check_loaded_textures, load_textures},
+    textures::BlockTextures,
+    ui::{debug::DebugMenuPlugin, load::LoadingUi},
 };
 
 fn main() {
@@ -40,15 +41,24 @@ fn main() {
                 camera_movement_speed: 0.2,
                 camera_rotation_speed: 0.3,
             },
+            DebugMenuPlugin,
         ))
         .init_state::<AppState>()
-        .add_systems(Startup, (setup_light, load_textures))
+        .add_systems(Startup, (setup_light, BlockTextures::load_textures_system))
         .add_systems(Update, handle_esc)
+        .add_systems(OnEnter(AppState::Loading), LoadingUi::add_ui_system)
         .add_systems(
             Update,
-            check_loaded_textures.run_if(in_state(AppState::Loading)),
+            (
+                BlockTextures::check_loaded_textures_system,
+                LoadingUi::update_ui_system,
+            )
+                .run_if(in_state(AppState::Loading)),
         )
-        .add_systems(OnExit(AppState::Loading), spawn_chunk)
+        .add_systems(
+            OnExit(AppState::Loading),
+            (LoadingUi::remove_ui_system, spawn_chunk),
+        )
         .add_systems(OnEnter(AppState::InGame), lock_cursor)
         .add_systems(OnExit(AppState::InGame), unlock_cursor)
         .run();
@@ -109,21 +119,28 @@ fn spawn_chunk(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let mut chunk = Chunk::filled(Vec3::new(0., 0., 0.), BlockId::STONE);
-    chunk.set_block(UVec3::new(0, 0, 3), BlockId::AIR);
-    chunk.set_block(UVec3::new(0, 1, 3), BlockId::AIR);
-    chunk.set_block(UVec3::new(1, 0, 3), BlockId::AIR);
-    chunk.set_block(UVec3::new(1, 1, 3), BlockId::AIR);
+    let mut chunk = Chunk::filled(UVec3::new(0, 0, 0), BlockId::STONE.default_state_id());
+    chunk.set_block(UVec3::new(0, 0, 3), BlockId::AIR.default_state_id());
+    chunk.set_block(UVec3::new(0, 1, 3), BlockId::AIR.default_state_id());
+    chunk.set_block(UVec3::new(1, 0, 3), BlockId::AIR.default_state_id());
+    chunk.set_block(UVec3::new(1, 1, 3), BlockId::AIR.default_state_id());
 
-    chunk.set_block(UVec3::new(2, 1, 3), BlockId::DIAMOND_ORE);
+    chunk.set_block(UVec3::new(2, 1, 3), BlockId::DIAMOND_ORE.default_state_id());
 
     for x in 0..CHUNK_SIZE {
         for y in 0..CHUNK_SIZE {
             chunk.set_block(
                 UVec3::new(x as u32, CHUNK_SIZE as u32 - 1, y as u32),
-                BlockId::DIRT,
+                BlockId::OAK_LEAVES.default_state_id(),
             );
-            chunk.set_block(UVec3::new(x as u32, 0, y as u32), BlockId::BEDROCK);
+            chunk.set_block(
+                UVec3::new(x as u32, CHUNK_SIZE as u32 - 2, y as u32),
+                BlockId::DIRT.default_state_id(),
+            );
+            chunk.set_block(
+                UVec3::new(x as u32, 0, y as u32),
+                BlockId::BEDROCK.default_state_id(),
+            );
         }
     }
 
