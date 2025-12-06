@@ -10,7 +10,7 @@ use crate::textures::BlockTextures;
 
 pub const CHUNK_SIZE: usize = 4;
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct Chunk {
     pub loc: UVec3,
     // TODO: Consider sparse chunk?
@@ -66,6 +66,14 @@ impl Chunk {
         self.blocks.get_mut(
             pos.x as usize * CHUNK_SIZE * CHUNK_SIZE + pos.y as usize * CHUNK_SIZE + pos.z as usize,
         )
+    }
+
+    pub fn regenerate_mesh(
+        &self,
+        textures: &BlockTextures,
+        meshes: &mut ResMut<Assets<Mesh>>,
+    ) -> Handle<Mesh> {
+        meshes.add(self.generate_mesh(textures))
     }
 
     fn generate_mesh(&self, textures: &BlockTextures) -> Mesh {
@@ -242,4 +250,15 @@ impl Chunk {
         .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, builder.vert_colors)
         .with_inserted_indices(Indices::U32(builder.indices))
     }
+}
+
+pub fn world_pos_to_chunk_pos(world_pos: IVec3) -> (IVec3, UVec3) {
+    let chunk_size = CHUNK_SIZE as i32;
+    let chunk_world_pos = IVec3::new(
+        (world_pos.x as f32 / chunk_size as f32).floor() as i32 * chunk_size,
+        (world_pos.y as f32 / chunk_size as f32).floor() as i32 * chunk_size,
+        (world_pos.z as f32 / chunk_size as f32).floor() as i32 * chunk_size,
+    );
+    let chunk_local_pos = (world_pos - chunk_world_pos).as_uvec3();
+    (chunk_world_pos, chunk_local_pos)
 }
