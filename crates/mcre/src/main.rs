@@ -50,16 +50,21 @@ fn main() {
         ))
         .add_plugins(ChunkLoaderPlugin::default())
         .init_state::<AppState>()
-        .add_systems(Startup, (setup_light, BlockTextures::load_textures_system))
+        .add_sub_state::<LoadingState>()
+        .add_systems(Startup, setup_light)
         .add_systems(Update, handle_esc)
         .add_systems(OnEnter(AppState::Loading), LoadingUi::add_ui_system)
         .add_systems(
+            OnEnter(LoadingState::Textures),
+            BlockTextures::load_textures_system,
+        )
+        .add_systems(
             Update,
-            (
-                BlockTextures::check_loaded_textures_system,
-                LoadingUi::update_ui_system,
-            )
-                .run_if(in_state(AppState::Loading)),
+            BlockTextures::check_loaded_textures_system.run_if(in_state(LoadingState::Textures)),
+        )
+        .add_systems(
+            Update,
+            LoadingUi::update_ui_system.run_if(in_state(AppState::Loading)),
         )
         .add_systems(OnExit(AppState::Loading), LoadingUi::remove_ui_system)
         .add_systems(OnEnter(AppState::InGame), lock_cursor)
@@ -73,6 +78,15 @@ enum AppState {
     Loading,
     InGame,
     Paused,
+}
+
+#[derive(SubStates, Clone, PartialEq, Eq, Hash, Debug, Default)]
+#[source(AppState = AppState::Loading)]
+enum LoadingState {
+    #[default]
+    Camera,
+    Textures,
+    Chunks,
 }
 
 fn setup_light(mut commands: Commands) {

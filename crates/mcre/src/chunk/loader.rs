@@ -1,11 +1,7 @@
-use bevy::{
-    asset::LoadState,
-    platform::collections::{HashMap, HashSet},
-    prelude::*,
-};
+use bevy::{asset::LoadState, platform::collections::HashMap, prelude::*};
 
 use crate::{
-    AppState,
+    AppState, LoadingState,
     chunk::{
         Chunk, ChunkComponent,
         asset::ChunkAssetLoader,
@@ -15,7 +11,9 @@ use crate::{
     textures::BlockTextures,
 };
 
-const DEFAULT_CHUNK_RADIUS: usize = 7;
+const DEFAULT_CHUNK_RADIUS: usize = 10;
+const DEFAULT_CHUNK_BATCH: usize = 20;
+const DEFAULT_CHUNK_LOADING_BATCH: usize = 100;
 const DEFAULT_CHUNK_SIZE: ChunkSize = ChunkSize::new(16);
 
 pub struct ChunkLoaderPlugin {
@@ -28,14 +26,31 @@ impl Plugin for ChunkLoaderPlugin {
             .init_resource::<ChunkLoader>()
             .init_asset_loader::<ChunkAssetLoader>()
             .insert_resource(self.config.clone())
-            .insert_resource(Time::from_seconds(1. / 2.))
+            .insert_resource(Time::from_seconds(1. / 20.))
             .add_systems(
                 FixedUpdate,
                 (
-                    ChunkLoader::load_chunks_system,
+                    ChunkLoader::read_chunks,
+                    ChunkLoader::load_chunks,
+                    ChunkLoader::spawn_chunks,
+                    |loader: Res<ChunkLoader>, mut next_state: ResMut<NextState<AppState>>| {
+                        if loader.unloaded_chunks.is_empty() && loader.rendering_chunks.is_empty() {
+                            next_state.set(AppState::InGame);
+                        }
+                    },
+                )
+                    .chain()
+                    .run_if(in_state(LoadingState::Chunks)),
+            )
+            .add_systems(
+                FixedUpdate,
+                (
+                    ChunkLoader::read_chunks,
+                    ChunkLoader::load_chunks,
                     ChunkLoader::spawn_chunks,
                     ChunkLoader::despawn_chunks,
                 )
+                    .chain()
                     .run_if(in_state(AppState::InGame)),
             );
     }
@@ -47,6 +62,7 @@ impl Default for ChunkLoaderPlugin {
             config: ChunkLoaderConfig {
                 chunk_radius: DEFAULT_CHUNK_RADIUS,
                 chunk_size: DEFAULT_CHUNK_SIZE,
+                batch_size: DEFAULT_CHUNK_BATCH,
             },
         }
     }
@@ -57,40 +73,47 @@ pub struct ChunkLoaderConfig {
     /// Number of chunks rendered around the camera in the x, y, z directions
     pub chunk_radius: usize,
     pub chunk_size: ChunkSize,
+    pub batch_size: usize,
 }
-
-type SpawnAssets<'a> = (
-    Res<'a, AssetServer>,
-    ResMut<'a, Assets<Chunk>>,
-    ResMut<'a, Assets<Mesh>>,
-);
 
 #[derive(Resource, Default, Debug)]
 pub struct ChunkLoader {
-    //TODO: Convert to some faster lookup, possibly `Vec<Handle<Chunk>>`
+    //TODO: Convert to some faster lookups
     unloaded_chunks: HashMap<ChunkPosition, Handle<Chunk>>,
+    rendering_chunks: HashMap<ChunkPosition, Handle<Chunk>>,
+    loaded_chunks: HashMap<ChunkPosition, Handle<Chunk>>,
 }
 
 impl ChunkLoader {
-    pub fn load_chunks_system(
+    pub fn unloaded_chunks(&self) -> usize {
+        self.unloaded_chunks.len()
+    }
+
+    pub fn rendering_chunks(&self) -> usize {
+        self.rendering_chunks.len()
+    }
+
+    pub fn loaded_chunks(&self) -> usize {
+        self.loaded_chunks.len()
+    }
+
+    fn contains(&self, pos: &ChunkPosition) -> bool {
+        self.unloaded_chunks.contains_key(pos)
+            || self.rendering_chunks.contains_key(pos)
+            || self.loaded_chunks.contains_key(pos)
+    }
+
+    pub fn read_chunks(
         camera: Query<&Transform, With<Camera>>,
         assets: Res<AssetServer>,
         config: Res<ChunkLoaderConfig>,
-        components: Query<&ChunkComponent>,
-        chunks: Res<Assets<Chunk>>,
         mut loader: ResMut<ChunkLoader>,
     ) {
         let camera_loc = camera.single().unwrap().translation;
         let cur_chunk = config.chunk_size.chunk_coord(camera_loc);
-        let current_components = components
-            .iter()
-            .filter_map(|c| chunks.get(c.0.id()))
-            .map(|c| c.loc)
-            //TODO: Optimize to a bitset?
-            .collect::<HashSet<_>>();
         let mut insert_count = 0;
         for loc in cur_chunk.iter_around(config.chunk_radius as u64) {
-            if !loader.unloaded_chunks.contains_key(&loc) && !current_components.contains(&loc) {
+            if !loader.contains(&loc) {
                 insert_count += 1;
                 loader.unloaded_chunks.insert(
                     loc,
@@ -103,13 +126,11 @@ impl ChunkLoader {
         }
     }
 
-    /// Spawn chunks that are in the `UnloadedChunk` state
-    pub fn spawn_chunks(
-        mut commands: Commands,
-        textures: Res<BlockTextures>,
-        config: Res<ChunkLoaderConfig>,
+    pub fn load_chunks(
         mut loader: ResMut<ChunkLoader>,
-        (assets, mut chunks, mut meshes): SpawnAssets,
+        mut chunks: ResMut<Assets<Chunk>>,
+        assets: Res<AssetServer>,
+        config: Res<ChunkLoaderConfig>,
     ) {
         let mut new_chunks = Vec::new();
         loader.unloaded_chunks.retain(|loc, handle| {
@@ -122,11 +143,11 @@ impl ChunkLoader {
                 }
                 Some(LoadState::Failed(_)) => {
                     // Chunk failed to load so we regenerate chunk
-                    new_chunks.push(chunks.add(spawn_test_chunk(config.chunk_size, *loc)));
+                    new_chunks.push((*loc, chunks.add(spawn_test_chunk(config.chunk_size, *loc))));
                     return false;
                 }
                 Some(LoadState::Loaded) => {
-                    new_chunks.push(handle.clone());
+                    new_chunks.push((*loc, handle.clone()));
                     return false;
                 }
                 _ => {
@@ -136,20 +157,58 @@ impl ChunkLoader {
             true
         });
         if !new_chunks.is_empty() {
-            let span = info_span!("chunk_spawning");
-            span.in_scope(|| {
-                info!("Spawning Chunks: {}", new_chunks.len());
-                for new_chunk in new_chunks {
-                    let chunk = chunks.get(new_chunk.id()).unwrap();
-                    commands.spawn((
-                        ChunkComponent(new_chunk),
-                        chunk.transform(),
-                        MeshMaterial3d(textures.texture().unwrap().clone()),
-                        Mesh3d(meshes.add(chunk.generate_mesh(&textures))),
-                    ));
-                }
-            });
+            loader.rendering_chunks.extend(new_chunks);
         }
+    }
+
+    /// Spawn chunks that are in the `UnloadedChunk` state
+    pub fn spawn_chunks(
+        mut commands: Commands,
+        mut loader: ResMut<ChunkLoader>,
+        mut meshes: ResMut<Assets<Mesh>>,
+        state: Res<State<AppState>>,
+        textures: Res<BlockTextures>,
+        config: Res<ChunkLoaderConfig>,
+        chunks: Res<Assets<Chunk>>,
+    ) {
+        if loader.rendering_chunks.is_empty() {
+            return;
+        }
+        let length = loader.rendering_chunks.len();
+        let batch_size = if let AppState::Loading = state.get() {
+            DEFAULT_CHUNK_LOADING_BATCH
+        } else {
+            config.batch_size
+        }
+        .min(length);
+        let batch = loader
+            .rendering_chunks
+            .keys()
+            .copied()
+            .take(batch_size)
+            .collect::<Vec<_>>();
+        if batch.is_empty() {
+            return;
+        }
+
+        let span = info_span!("chunk_spawning");
+        span.in_scope(|| {
+            info!("Rendering Chunks: {} / {}", batch_size, length,);
+            let batch = batch
+                .into_iter()
+                .filter_map(|i| loader.rendering_chunks.remove(&i))
+                .collect::<Vec<_>>();
+            for new_chunk in batch {
+                let chunk = chunks.get(new_chunk.id()).unwrap();
+                loader.loaded_chunks.insert(chunk.loc, new_chunk.clone());
+                commands.spawn((
+                    ChunkComponent(new_chunk),
+                    chunk.transform(),
+                    MeshMaterial3d(textures.texture().unwrap().clone()),
+                    Mesh3d(meshes.add(chunk.generate_mesh(&textures))),
+                ));
+            }
+        });
     }
 
     pub fn despawn_chunks(
@@ -158,30 +217,31 @@ impl ChunkLoader {
         components: Query<(Entity, &ChunkComponent)>,
         mut chunks: ResMut<Assets<Chunk>>,
         config: Res<ChunkLoaderConfig>,
+        mut loader: ResMut<ChunkLoader>,
     ) {
+        if components.is_empty() {
+            return;
+        }
         let camera_loc = camera.single().unwrap().translation;
         let cur_chunk = config.chunk_size.chunk_coord(camera_loc);
         let radius = config.chunk_radius as u64;
-        if components.is_empty() {
-            info!("Empty components");
-        }
         let remove_chunks = components
             .iter()
             .filter_map(|(entity, chunk)| {
                 let id = chunk.0.id();
                 let chunk = chunks.get(id)?;
 
-                (cur_chunk.x.abs_diff(chunk.loc.x) > radius
-                    || cur_chunk.y.abs_diff(chunk.loc.y) > radius
-                    || cur_chunk.z.abs_diff(chunk.loc.z) > radius)
-                    .then_some((entity, id))
+                cur_chunk
+                    .outside_radius(chunk.loc, radius)
+                    .then_some((entity, chunk.loc, id))
             })
             .collect::<Vec<_>>();
         if !remove_chunks.is_empty() {
             info!("Despawning Chunks: {}", remove_chunks.len());
         }
-        for (entity, id) in remove_chunks {
+        for (entity, loc, id) in remove_chunks {
             //TODO: Save to disk
+            loader.loaded_chunks.remove(&loc);
             commands.entity(entity).despawn();
             chunks.remove(id);
         }

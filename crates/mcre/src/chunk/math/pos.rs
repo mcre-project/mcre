@@ -22,6 +22,12 @@ impl ChunkPosition {
     pub fn iter_around(self, radius: u64) -> impl Iterator<Item = Self> {
         ChunkIterator::new(self, radius as i64)
     }
+
+    pub fn outside_radius(self, other: Self, radius: u64) -> bool {
+        self.x.abs_diff(other.x) > radius
+            || self.y.abs_diff(other.y) > radius
+            || self.z.abs_diff(other.z) > radius
+    }
 }
 
 impl Deref for ChunkPosition {

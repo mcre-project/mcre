@@ -1,7 +1,7 @@
 use bevy::{asset::LoadState, platform::collections::HashMap, prelude::*};
 use mcre_core::{Block, BlockState};
 
-use crate::AppState;
+use crate::LoadingState;
 
 const BATCH_SIZE: usize = 10;
 
@@ -171,7 +171,7 @@ impl BlockTextures {
     }
 
     pub fn check_loaded_textures_system(
-        mut next_app_state: ResMut<NextState<AppState>>,
+        mut next_state: ResMut<NextState<LoadingState>>,
         mut textures: ResMut<BlockTextures>,
         asset_server: Res<AssetServer>,
         mut images: ResMut<Assets<Image>>,
@@ -179,7 +179,7 @@ impl BlockTextures {
     ) {
         if textures.update_batch(&asset_server, &mut images, &mut materials) {
             //TODO: Setup event here instead
-            next_app_state.set(AppState::InGame);
+            next_state.set(LoadingState::Chunks);
         }
     }
 }
